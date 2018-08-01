@@ -9,7 +9,7 @@ The simulated car can steer, brake, and accelerate and has to go around a lakesi
 The MPC uses uWebSockets to communicate with the control. 
 The student has to implement the MPC algorithm, but the [structure of the project is provided by Udacity](https://github.com/udacity/CarND-MPC-Project). 
 
-
+The 
 
 
 
@@ -61,6 +61,8 @@ Only the first computed input is used, then a new trajectory gets computed.
 
 ## Implementation
 
+### Cost function
+
 The cost function consists of the crosstrack-error, the angle error, the speed error, cost for steering and acceleration and continous input for steering and acceleration.
 The continous steering is the most important function because it requires a steady line at all times. The line tries to cut the corner, which is 
 desirable for safe high speed driving. A highly weighted crosstrack-error deteriorates the driving. The solver chooses a sharp return to the desired lane, but accepts oscillating behaviour.
@@ -91,6 +93,53 @@ A continous speed input prevents oscillating inputs and resulting discomfort.
     }
 ```
 
+If the time predicted is too long, the algorithm and the optimizer gets unstable. Increasing the number of steps is only possible in 
+conjunction with a highly weighted steering continouity. The stepsize used is 0.05 s with 15 steps predicted (0.75 s prediction). 
+
+### Model
+
+The model consists of six states: x-coordinate, y-coordinate, angle psi, velocity v, crosstrack-error cte and error in angle epsi. 
+Steering and acceleration serve as an input. They propagate via velocity and angle into the positions x and y. 
+The error in position is linearized and the angle error uses the experimental factor Lf. 
+
+´´´
+    x_[t+1] = x[t] + v[t] * cos(psi[t]) * dt
+    y_[t+1] = y[t] + v[t] * sin(psi[t]) * dt
+    psi_[t+1] = psi[t] + v[t] / Lf * delta[t] * dt
+    v_[t+1] = v[t] + a[t] * dt
+    cte[t+1] = f(x[t]) - y[t] + v[t] * sin(epsi[t]) * dt
+    epsi[t+1] = psi[t] - psides[t] + v[t] * delta[t] / Lf * dt
+	
+´´´ 
 
 
+### Model constraints 
 
+The state at time t=0 is the current state. In the following code, the states are computed using the model. The inputs may be optimized
+within the following boundaries. 
+Within the predefined input delay, the previous state is set constant. This is a vital part to reach high speeds! 
+The following input states may be anything within the simulators boundaries. 
+
+´´´c++
+  // as long as there is delay keep previous value
+  for (size_t i = delta_start; i<delta_start + latency; ++i){
+	  vars_lowerbound[i] = delta_hist;
+	  vars_upperbound[i] = delta_hist; 
+  }
+  // The upper and lower limits of delta are set to -25 and 25
+  // degrees (values in radians).
+  for (size_t i = delta_start+latency; i < a_start; ++i) {
+    vars_lowerbound[i] = -0.436332;
+    vars_upperbound[i] = 0.436332;
+  }
+  for (size_t i = a_start; i < a_start + latency; ++i) {
+	vars_lowerbound[i] = a_hist;
+	vars_upperbound[i] = a_hist;
+  }
+  // Acceleration/decceleration upper and lower limits.
+  // NOTE: Feel free to change this to something else.
+  for (size_t i = a_start+latency; i < n_vars; i++) {
+    vars_lowerbound[i] = -1.0;
+    vars_upperbound[i] = 1.0;
+  }
+´´´ 
