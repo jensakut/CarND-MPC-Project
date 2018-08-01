@@ -9,7 +9,9 @@ The simulated car can steer, brake, and accelerate and has to go around a lakesi
 The MPC uses uWebSockets to communicate with the control. 
 The student has to implement the MPC algorithm, but the [structure of the project is provided by Udacity](https://github.com/udacity/CarND-MPC-Project). 
 
-The 
+The result is shown in this .gif animation: 
+
+![Alt Text](result.gif) 
 
 
 
@@ -71,25 +73,26 @@ The speed deviation is needed so the car doesn't stop. Maybe the desired speed s
 A continous speed input prevents oscillating inputs and resulting discomfort. 
 
 ```c++
-	for (size_t t = 0; t < N; t++) {
-		//add cost for crosstrack-error
-		fg[0] += CppAD::pow(vars[cte_start  + t],2);
-		// add cost for error in direction
-		fg[0] += 2*CppAD::pow(vars[epsi_start + t],2);
-		// add cost for speed deviation
-		fg[0] += CppAD::pow(vars[v_start + t]-ref_v,2)/5;
-	}
-	for (size_t t = 0; t < N-1; t++) {
-		// add cost for steering 
-		fg[0] += CppAD::pow(vars[delta_start + t],2);
-		// add cost for accelerating/braking
-		fg[0] += CppAD::pow(vars[a_start     + t],2);
-	}
-
-	// Minimize the value gap between sequential actuations.
-    for (size_t t = 0; t < N - 2; t++) {
-      fg[0] +=1500*CppAD::pow(vars[delta_start + t + 1] - vars[delta_start + t], 2);
-      fg[0] +=  10*CppAD::pow(vars[a_start + t + 1]     - vars[a_start     + t], 2);
+for (size_t t = 0; t < N; t++) {
+	//add cost for crosstrack-error
+	fg[0] += CppAD::pow(vars[cte_start  + t],2);
+	// add cost for error in direction
+	fg[0] += 2*CppAD::pow(vars[epsi_start + t],2);
+	// add cost for speed deviation
+	fg[0] += CppAD::pow(vars[v_start + t]-ref_v,2)/5;
+}
+for (size_t t = 0; t < N-1; t++) {
+	// add cost for steering 
+	fg[0] += CppAD::pow(vars[delta_start + t],2);
+	// add cost for accelerating/braking
+	fg[0] += CppAD::pow(vars[a_start     + t],2);
+}
+// Minimize the value gap between sequential actuations.
+for (size_t t = 0; t < N - 2; t++) {
+	//steering
+    fg[0] +=1500*CppAD::pow(vars[delta_start + t + 1] - vars[delta_start + t], 2);
+	//acceleration
+    fg[0] +=  10*CppAD::pow(vars[a_start + t + 1]     - vars[a_start     + t], 2);
     }
 ```
 
@@ -102,15 +105,14 @@ The model consists of six states: x-coordinate, y-coordinate, angle psi, velocit
 Steering and acceleration serve as an input. They propagate via velocity and angle into the positions x and y. 
 The error in position is linearized and the angle error uses the experimental factor Lf. 
 
-´´´
+```c++
     x_[t+1] = x[t] + v[t] * cos(psi[t]) * dt
     y_[t+1] = y[t] + v[t] * sin(psi[t]) * dt
     psi_[t+1] = psi[t] + v[t] / Lf * delta[t] * dt
     v_[t+1] = v[t] + a[t] * dt
     cte[t+1] = f(x[t]) - y[t] + v[t] * sin(epsi[t]) * dt
     epsi[t+1] = psi[t] - psides[t] + v[t] * delta[t] / Lf * dt
-	
-´´´ 
+```
 
 
 ### Model constraints 
@@ -120,7 +122,7 @@ within the following boundaries.
 Within the predefined input delay, the previous state is set constant. This is a vital part to reach high speeds! 
 The following input states may be anything within the simulators boundaries. 
 
-´´´c++
+```c++
   // as long as there is delay keep previous value
   for (size_t i = delta_start; i<delta_start + latency; ++i){
 	  vars_lowerbound[i] = delta_hist;
@@ -142,4 +144,4 @@ The following input states may be anything within the simulators boundaries.
     vars_lowerbound[i] = -1.0;
     vars_upperbound[i] = 1.0;
   }
-´´´ 
+```
