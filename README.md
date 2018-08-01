@@ -9,7 +9,7 @@ The simulated car can steer, brake, and accelerate and has to go around a lakesi
 The MPC uses uWebSockets to communicate with the control. 
 The student has to implement the MPC algorithm, but the [structure of the project is provided by Udacity](https://github.com/udacity/CarND-MPC-Project). 
 
-The result is shown in this .gif animation: 
+The result is shown in the following animation. The car is optimized for save speeding.  
 
 ![Alt Text](result.gif) 
 
@@ -54,22 +54,23 @@ The result is shown in this .gif animation:
 # Implementation
 
 ## Overview
-The modelpredicted controller uses states, which get propagated in the future. This prediction is compared against a desired state which is a given trajectory in this example. 
-A cost function and an optimizer is used to evaluate the fitness of the predicted states. By varying inputs, the optimizer chooses the best input. 
-Only the first computed input is used, then a new trajectory gets computed. 
 
-* main.cpp handles the communication with the simulator and prepares the data to be send to the mpc class, which it also plots
-* MPC.cpp consists of the eval routine for determining the cost of a trajectory and the mpc class. 
+The model-predicted controller uses states, which numerically calculate into the future. This prediction is compared against a desired state which, in this case, is a given trajectory and a static speed. 
+A cost function and an optimizer serve to evaluate the fitness of the predicted states. By varying inputs, the optimizer approximates the best input. 
+Only the first computed input is used, then new inputs and a new trajectory is computed. 
+
+* main.cpp handles the communication with the simulator, plotting and preparatioin of the data to be send to the mpc class
+* MPC.cpp consists of an eval routine for determining the cost of a trajectory and the mpc class itself. 
 
 ## Implementation
 
 ### Cost function
 
-The cost function consists of the crosstrack-error, the angle error, the speed error, cost for steering and acceleration and continous input for steering and acceleration.
-The continous steering is the most important function because it requires a steady line at all times. The line tries to cut the corner, which is 
-desirable for safe high speed driving. A highly weighted crosstrack-error deteriorates the driving. The solver chooses a sharp return to the desired lane, but accepts oscillating behaviour.
-Therefore continous steering and crosstrack-error need to be balanced. Weighting the error in steering angle leads to a middle-lane driving without oscillations. 
-The speed deviation is needed so the car doesn't stop. Maybe the desired speed should depend on the modeled lateral acceleration of a corner rather than being static. 
+The cost function consists of the crosstrack-error, the angle error, the speed error, cost for the inputs as well as their continuity. 
+The continous steering is the most important function, because it requires a steady line at all times. The line tries to cut the corner, which is 
+desirable for safe high speed driving. A highly weighted crosstrack-error deteriorates the driving. This leads to a solver choosing a sharp return to the desired lane, but accepts oscillating behaviour.
+Therefore continous steering and crosstrack-error need to be balanced. The solutionin this dilemma is adding weights to the error in steering angle. 
+The speed deviation is needed so the car doesn't optimize the error by stopping. 
 A continous speed input prevents oscillating inputs and resulting discomfort. 
 
 ```c++
@@ -96,7 +97,7 @@ for (size_t t = 0; t < N - 2; t++) {
     }
 ```
 
-If the time predicted is too long, the algorithm and the optimizer gets unstable. Increasing the number of steps is only possible in 
+If the prediction is too far ahead, the algorithm and the optimizer gets unstable. Increasing the number of steps is only possible in 
 conjunction with a highly weighted steering continouity. The stepsize used is 0.05 s with 15 steps predicted (0.75 s prediction). 
 
 ### Model
@@ -145,3 +146,14 @@ The following input states may be anything within the simulators boundaries.
     vars_upperbound[i] = 1.0;
   }
 ```
+
+## Next steps
+
+The car is still wobbly after cutting a fast corner, there is a reluctance to return to the center. Less steering continuity might improve this. 
+
+In real life, the speed should be dynamic. It should be a minimum of speed limit and cornering angle of a longer prediction into the future. Right now, a car would drive like a maniac, breaking at the last possible moment. 
+It would be interesting to use an optimizer to search for better cost parameters by using a representative measurement set. 
+
+The car doesn't start stable, because the prediction uses an almost-zero speed. At zero speed, a minimum speed for the model would help. 
+
+Once the car is off trajectory, the algorithm doesn't work anymore. Therefore, either the path planning or the control system has to be improved for these unusual states. 
