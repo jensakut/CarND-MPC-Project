@@ -12,6 +12,8 @@
 // for convenience
 using json = nlohmann::json;
 
+
+
 // For converting back and forth between radians and degrees.
 constexpr double pi() { return M_PI; }
 double deg2rad(double x) { return x * pi() / 180; }
@@ -132,33 +134,22 @@ int main() {
 		  // init x, y, psi, v, cte, epsi
 		  state << 0, 0, 0, v, cte, epsi; 
 		  
-		  auto vars = mpc.Solve(state, coeffs);
-		  
+		  auto result = mpc.Solve(state, coeffs);
 		  
           json msgJson;
           // NOTE: Remember to divide by deg2rad(25) before you send the steering value back.
           // Otherwise the values will be in between [-deg2rad(25), deg2rad(25] instead of [-1, 1].
           
-		  double Lf = 2.67;
+		  //double Lf = 2.67;
 		  
-		  msgJson["steering_angle"] = -vars[0]/(deg2rad(25)*Lf);
-          msgJson["throttle"] = vars[1];
+		  msgJson["steering_angle"] = -result.delta[mpc.latency]/(deg2rad(25));
+          msgJson["throttle"] = result.a[mpc.latency];
+		  mpc.delta_hist = result.delta[mpc.latency];
+		  mpc.a_hist = result.a[mpc.latency];
 
-          //Display the MPC predicted trajectory 
-          vector<double> mpc_x_vals;
-          vector<double> mpc_y_vals;
 
-          //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
-          // the points in the simulator are connected by a Green line
-		  for (int i=2; i < int(vars.size()); i++) {
-			  if(i%2 == 0)
-				  mpc_x_vals.push_back(vars[i]);
-			  else 
-				  mpc_y_vals.push_back(vars[i]);
-		  }
-
-          msgJson["mpc_x"] = mpc_x_vals;
-          msgJson["mpc_y"] = mpc_y_vals;
+          msgJson["mpc_x"] = result.x;
+          msgJson["mpc_y"] = result.y;
 
           //Display the waypoints/reference line
           vector<double> next_x_vals;
