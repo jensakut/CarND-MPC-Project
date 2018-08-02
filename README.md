@@ -74,31 +74,54 @@ The speed deviation is needed so the car doesn't optimize the error by stopping.
 A continous speed input prevents oscillating inputs and resulting discomfort. 
 
 ```c++
-for (size_t t = 0; t < N; t++) {
-	//add cost for crosstrack-error
-	fg[0] += CppAD::pow(vars[cte_start  + t],2);
-	// add cost for error in direction
-	fg[0] += 2*CppAD::pow(vars[epsi_start + t],2);
-	// add cost for speed deviation
-	fg[0] += CppAD::pow(vars[v_start + t]-ref_v,2)/5;
-}
-for (size_t t = 0; t < N-1; t++) {
-	// add cost for steering 
-	fg[0] += CppAD::pow(vars[delta_start + t],2);
-	// add cost for accelerating/braking
-	fg[0] += CppAD::pow(vars[a_start     + t],2);
-}
-// Minimize the value gap between sequential actuations.
-for (size_t t = 0; t < N - 2; t++) {
-	//steering
-    fg[0] +=1500*CppAD::pow(vars[delta_start + t + 1] - vars[delta_start + t], 2);
-	//acceleration
-    fg[0] +=  10*CppAD::pow(vars[a_start + t + 1]     - vars[a_start     + t], 2);
+	double cte_fac = 1; 
+	double epsi_fac = 2; 
+	double v_fac = 0.2; 
+	double steering_fac = 1;
+	double accel_fac = 1;
+	double steadysteering_fac = 1500; 
+	double steadyaccel_fac = 10; 
+	
+	for (size_t t = 0; t < N; t++) {
+		//add cost for crosstrack-error
+		fg[0] += cte_fac *CppAD::pow(vars[cte_start  + t],2);
+		// add cost for error in direction
+		fg[0] += epsi_fac*CppAD::pow(vars[epsi_start + t],2);
+		// add cost for speed deviation
+		fg[0] += v_fac   *CppAD::pow(vars[v_start + t]-ref_v,2);
+	}
+	for (size_t t = 0; t < N-1; t++) {
+		// add cost for steering 
+		fg[0] += steering_fac *CppAD::pow(vars[delta_start + t],2);
+		// add cost for accelerating/braking
+		fg[0] += accel_fac    *CppAD::pow(vars[a_start     + t],2);
+	}
+
+	// Minimize the value gap between sequential actuations.
+    for (size_t t = 0; t < N - 2; t++) {
+      fg[0] += steadysteering_fac*CppAD::pow(vars[delta_start + t + 1] - vars[delta_start + t], 2);
+      fg[0] += steadyaccel_fac*CppAD::pow(vars[a_start + t + 1]     - vars[a_start     + t], 2);
     }
 ```
 
-If the prediction is too far ahead, the algorithm and the optimizer gets unstable. Increasing the number of steps is only possible in 
-conjunction with a highly weighted steering continouity. The stepsize used is 0.05 s with 15 steps predicted (0.75 s prediction). 
+### Stepsize and number of steps 
+
+The stepsize should be as short as possible given the input delay. A rough stepsize leads to a rough corner approximation which deteriorates stability. 
+With a fixed stepsize, the car has issues approximating the correct line at very low speeds. A stepsize of 0.04 is unstable, whereas 0.05 is stable. A stepsize of 200 ms
+crashes the car because the resolution is too low. 
+A polynomial approximation gains stability both from a high stepcount and a low order. Therefore, the lowest stepsize possible is used. 
+The length of the prediction needs to be 8 to function properly, anything below can't approximate well enough. On the other hand, a stepcount of 30 with a resolution of 0.05 s
+leads to a crash, because the polynomial approximates the current and the next corner. This leads to a complicated optimization problem which needs a lot of computational effort. 
+With the stepcound of 25 and 0.05 s resolution, the car can follow the trajectory smoothly. 
+Still, the additional information given by the waypoints in the distance isn't useful for driving. 
+To not include distant waypoints into the cost function, a stepcount of 15 (0.75 s) gives a reasonable prediction distance for the given course. 
+The shape of the corner further ahead should be incorporated in the pathplanning module. 
+
+```c++
+const int N =15;
+const double dt = 0.05;
+double ref_v = 65; 
+```
 
 ### Model
 
@@ -120,7 +143,9 @@ The error in position is linearized and the angle error uses the experimental fa
 
 The state at time t=0 is the current state. In the following code, the states are computed using the model. The inputs may be optimized
 within the following boundaries. 
-Within the predefined input delay, the previous state is set constant. This is a vital part to reach high speeds! 
+The previous input is set constant within the predefined input delay. Therefore, the model propagates this delay into the future. 
+The controller sets the input according to the action right after the delay. This algorithm incorporates the input delay into the model. 
+This is a vital part to safely reach high speeds! 
 The following input states may be anything within the simulators boundaries. 
 
 ```c++
@@ -147,11 +172,13 @@ The following input states may be anything within the simulators boundaries.
   }
 ```
 
+
 ## Next steps
 
 The car is still wobbly after cutting a fast corner, there is a reluctance to return to the center. Less steering continuity might improve this. 
 
 In real life, the speed should be dynamic. It should be a minimum of speed limit and cornering angle of a longer prediction into the future. Right now, a car would drive like a maniac, breaking at the last possible moment. 
+While computing the waypoints themselves, a target speed should be computed. 
 It would be interesting to use an optimizer to search for better cost parameters by using a representative measurement set. 
 
 The car doesn't start stable, because the prediction uses an almost-zero speed. At zero speed, a minimum speed for the model would help. 

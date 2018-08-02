@@ -8,7 +8,7 @@ using CppAD::AD;
 // TODO: Set the timestep length and duration
 const int N =15;
 const double dt = 0.05;
-
+double ref_v = 65; 
 // This value assumes the model presented in the classroom is used.
 //
 // It was obtained by measuring the radius formed by running the vehicle in the
@@ -21,7 +21,7 @@ const double dt = 0.05;
 // This is the length from front to CoG that has a similar radius.
 const double Lf = 2.67;
  
-double ref_v = 65; 
+
 
 
 size_t x_start = 0;
@@ -52,29 +52,32 @@ class FG_eval {
     fg[0] = 0;
 
     // Reference State Cost
-    // TODO: Define the cost related the reference state and
-    // any anything you think may be beneficial.
-	
-	
+	double cte_fac = 1; 
+	double epsi_fac = 2; 
+	double v_fac = 0.2; 
+	double steering_fac = 1;
+	double accel_fac = 1;
+	double steadysteering_fac = 1500; 
+	double steadyaccel_fac = 10; 
 	for (size_t t = 0; t < N; t++) {
 		//add cost for crosstrack-error
-		fg[0] += CppAD::pow(vars[cte_start  + t],2);
+		fg[0] += cte_fac *CppAD::pow(vars[cte_start  + t],2);
 		// add cost for error in direction
-		fg[0] += 2*CppAD::pow(vars[epsi_start + t],2);
+		fg[0] += epsi_fac*CppAD::pow(vars[epsi_start + t],2);
 		// add cost for speed deviation
-		fg[0] += CppAD::pow(vars[v_start + t]-ref_v,2)/5;
+		fg[0] += v_fac   *CppAD::pow(vars[v_start + t]-ref_v,2);
 	}
 	for (size_t t = 0; t < N-1; t++) {
 		// add cost for steering 
-		fg[0] += CppAD::pow(vars[delta_start + t],2);
+		fg[0] += steering_fac *CppAD::pow(vars[delta_start + t],2);
 		// add cost for accelerating/braking
-		fg[0] += CppAD::pow(vars[a_start     + t],2);
+		fg[0] += accel_fac    *CppAD::pow(vars[a_start     + t],2);
 	}
 
 	// Minimize the value gap between sequential actuations.
     for (size_t t = 0; t < N - 2; t++) {
-      fg[0] +=1500*CppAD::pow(vars[delta_start + t + 1] - vars[delta_start + t], 2);
-      fg[0] +=  10*CppAD::pow(vars[a_start + t + 1]     - vars[a_start     + t], 2);
+      fg[0] += steadysteering_fac*CppAD::pow(vars[delta_start + t + 1] - vars[delta_start + t], 2);
+      fg[0] += steadyaccel_fac*CppAD::pow(vars[a_start + t + 1]     - vars[a_start     + t], 2);
     }
     //
     // Setup Constraints
